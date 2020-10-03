@@ -3,6 +3,7 @@ import socket
 import configparser
 from itertools import chain
 import re
+from threading import Thread
 
 import client, server
 
@@ -47,10 +48,17 @@ class Honkuru(object):
 
     def main(self):
         if self.server:
-            s = server.Server()
-            s.server()
+            s = server.Server(self.server_ip, self.server_port, self.client_ports)
+            # s.server()
+            server_thread = Thread(target=s.server, args=())
+            server_thread.start()
+
+            c = client.Client(self.server_ip, self.server_port)
+            # c.client()
+            # client_thread = Thread(target=c.client, args=())
+            # client_thread.start()
         else:
-            c = client.Client()
+            c = client.Client(self.server_ip, self.server_port)
             c.client()
 
     def parse_range_list(self, rgstr):
