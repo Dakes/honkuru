@@ -1,4 +1,5 @@
 import os
+from time import sleep
 import socket
 import configparser
 from itertools import chain
@@ -6,6 +7,7 @@ import re
 from threading import Thread
 
 import client, server
+from message import Message
 
 class Honkuru(object):
 
@@ -23,6 +25,7 @@ class Honkuru(object):
 
         # test if a server is available on server_port
         server_exist = self.check_server()
+        sleep(0.1)
         self.server = False
 
         if not server_exist:
@@ -33,13 +36,18 @@ class Honkuru(object):
             print("Server detected at: ", self.server_ip+":"+str(self.server_port))
             print("Entering Client mode")
 
-
     def check_server(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s.connect((self.server_ip, self.server_port))
-            s.shutdown(2)
-            return True
+            s.send(Message.check_available)
+            result = s.recv(1024)
+            print("result: ", result)
+            s.close()
+            if result == Message.server_available:
+                return True
+            else:
+                return False
         except ConnectionRefusedError:
             return False
         except OverflowError as err:
@@ -53,13 +61,14 @@ class Honkuru(object):
             server_thread = Thread(target=s.server, args=())
             server_thread.start()
 
-            c = client.Client(self.server_ip, self.server_port)
+            # c = client.Client(self.server_ip, self.server_port)
             # c.client()
             # client_thread = Thread(target=c.client, args=())
             # client_thread.start()
         else:
             c = client.Client(self.server_ip, self.server_port)
             c.client()
+        # TODO: add server only mode
 
     def parse_range_list(self, rgstr):
         """

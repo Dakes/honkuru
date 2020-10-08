@@ -1,6 +1,9 @@
 import pickle
 import socket
-from _thread import *
+# from _thread import *
+import _thread
+import threading
+from time import sleep
 
 from message import Message
 
@@ -10,51 +13,93 @@ class Server(object):
         self.server_ip = sip
         self.server_port = sport
         self.client_ports_available = cports
-        self.client_ports_in_use = []
+        # self.client_ports_in_use = []
+        self.clients = set()
+        self.clients_lock = threading.Lock()
 
-        self.test = []
+        self.last_message = None
+        self.messages = []
+
 
         self.welcome_message = "Welcome to the chatroom. "
 
 
     def server(self):
-        # self.accept_client_connection()
-
-        # self.test_con()
-
-
-        ServerSocket = socket.socket()
-        ThreadCount = 0
+        server_socket = socket.socket()
+        thread_count = 0
         try:
-            ServerSocket.bind((self.server_ip, self.server_port))
+            server_socket.bind((self.server_ip, self.server_port))
         except socket.error as e:
             print(str(e))
-        ServerSocket.listen(5)
+            exit(1)
+        server_socket.listen(5)
 
         while True:
-            Client, address = ServerSocket.accept()
-            print('Connected to: ' + address[0] + ':' + str(address[1]))
-            start_new_thread(self.threaded_server, (Client,))
-            ThreadCount += 1
-            print('Thread Number: ' + str(ThreadCount))
-        ServerSocket.close()
+            client, address = server_socket.accept()
+            with self.clients_lock:
+                check_msg = client.recv(1024)
+                # only add to clients if not a test connect to see if server is available
+                if check_msg == Message.check_available:
+                    client.send(Message.server_available)
+                    client.close()
+                    continue
+                elif check_msg == Message.client_connection:
+                    self.clients.add(client)
+                    print('Connected to: ' + address[0] + ':' + str(address[1]))
+                    _thread.start_new_thread(self.threaded_server, (client,))
+        server_socket.close()
 
     def threaded_server(self, connection):
-        connection.send(self.welcome_message.encode('utf-8', 'replace'))
+
+        wlc = Message(Message.server_user, self.welcome_message)
+        wlc_pickled = pickle.dumps(wlc)
+        connection.send(wlc_pickled)
+
         while True:
-            data = connection.recv(2048)
-            data = data.decode('utf-8')
-            if data == Message.disconnect:
-                reply = "Disconnecting"
-                connection.sendall(reply.encode('utf-8', 'replace'))
+            msg_pickled = connection.recv(4096)
+
+            # skip if string is empty (does not come from client)
+            if not msg_pickled:
+                sleep(0.01)
+                continue
+
+            # print("Received data: ", data)
+            msg = pickle.loads(msg_pickled)
+            self.messages.append(msg)
+            print(self.clients)
+            self.distribute_message(msg)
+
+            # data = data.decode('utf-8')
+            if msg.message == Message.disconnect:
+                reply_str = "Disconnecting"
+                reply = Message(Message.server_user, reply_str)
+                reply_pickled = pickle.dumps(reply)
+                connection.sendall(reply_pickled)
                 break
             else:
-                reply = 'Server received: ' + data
-            if not data:
+                # send reply back as is
+                # reply = 'Server received: ' + data.message
+                pass
+            if not msg_pickled:
                 break
 
-            connection.sendall(reply.encode('utf-8', 'replace'))
+            # TODO: send to all connected clients
+            connection.sendall(msg_pickled)
         connection.close()
+
+    def distribute_message(self, msg):
+        """
+        Sends the given message to all connected clients
+        :param msg:
+        :return:
+        """
+        with self.clients_lock:
+            for client in self.clients:
+                print("sending to: ", client)
+                msg_pickled = pickle.dumps(msg)
+                client.sendall(msg_pickled)
+
+
 
 
 
