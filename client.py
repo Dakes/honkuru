@@ -3,6 +3,8 @@ import socket
 
 from message import Message
 
+from chat_tui import ChatTUI
+
 
 class Client(object):
 
@@ -12,9 +14,13 @@ class Client(object):
 
         self.user = "Anonymous"
 
+        # Array of all past message history. Elements are Message objects
         self.messages = []
 
     def client(self):
+        ui = ChatTUI(self.send, self.messages)
+
+
         client_socket = socket.socket()
         print('Waiting for connection')
         try:
@@ -26,10 +32,14 @@ class Client(object):
         client_socket.send(Message.client_connection)
         self.set_username()
 
+
+        ui.draw()
+
         # Receive and print welcome message
         resp_pickled = client_socket.recv(4096)
         resp = pickle.loads(resp_pickled)
         print(resp.user+":", resp.message)
+        ui.receive_msg(resp.message)
 
         while True:
             msg_str = input('send: ')
@@ -42,6 +52,8 @@ class Client(object):
             resp_pickled = client_socket.recv(4096)
             resp = pickle.loads(resp_pickled)
             print(resp.user+":", resp.message)
+            self.messages.append(resp)
+            ui.receive_msg(resp.message)
             print("")
 
             if msg.message == Message.disconnect:
@@ -53,3 +65,9 @@ class Client(object):
         usr = input("Please choose a username: ")
         self.user = usr
 
+    def send(self, msg):
+        for i in range(20):
+            print(msg)
+
+    def new_msg(self):
+        pass
