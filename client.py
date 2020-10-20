@@ -16,48 +16,50 @@ class Client(object):
 
         # Array of all past message history. Elements are Message objects
         self.messages = []
+        self.client_socket = None
 
     def client(self):
         ui = ChatTUI(self.send, self.messages)
 
 
-        client_socket = socket.socket()
+        self.client_socket = socket.socket()
+        # self.client_socket = client_socket
         print('Waiting for connection')
         try:
-            client_socket.connect((self.server_ip, self.server_port))
+            self.client_socket.connect((self.server_ip, self.server_port))
         except socket.error as e:
             print(str(e))
             exit(1)
 
-        client_socket.send(Message.client_connection)
+        self.client_socket.send(Message.client_connection)
         self.set_username()
 
 
-        ui.draw()
+        ui.main()
 
         # Receive and print welcome message
-        resp_pickled = client_socket.recv(4096)
+        resp_pickled = self.client_socket.recv(4096)
         resp = pickle.loads(resp_pickled)
         print(resp.user+":", resp.message)
-        ui.receive_msg(resp.message)
+        ui.receive_msg(resp)
 
         while True:
-            msg_str = input('send: ')
-            msg = Message(self.user, msg_str)
+            # msg_str = input('send: ')
+            # msg = Message(self.user, msg_str)
             # prevent sending of empty String
             # msg = Message(self.user, "") if not msg else msg
 
-            msg_pickled = pickle.dumps(msg)
-            client_socket.send(msg_pickled)
-            resp_pickled = client_socket.recv(4096)
+            # msg_pickled = pickle.dumps(msg)
+            # client_socket.send(msg_pickled)
+            resp_pickled = self.client_socket.recv(4096)
             resp = pickle.loads(resp_pickled)
-            print(resp.user+":", resp.message)
+            # print(resp.user+":", resp.message)
             self.messages.append(resp)
-            ui.receive_msg(resp.message)
-            print("")
+            ui.receive_msg(resp)
+            # print("")
 
-            if msg.message == Message.disconnect:
-                break
+            # if msg.message == Message.disconnect:
+                # break
 
         client_socket.close()
 
@@ -66,8 +68,10 @@ class Client(object):
         self.user = usr
 
     def send(self, msg):
-        for i in range(20):
-            print(msg)
+        new_msg = Message(self.user, msg)
+        msg_pickled = pickle.dumps(new_msg)
+        self.client_socket.send(msg_pickled)
+
 
     def new_msg(self):
         pass
