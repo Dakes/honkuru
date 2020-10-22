@@ -1,4 +1,5 @@
-import urwid
+from time import sleep
+
 from message import Message
 
 from prompt_toolkit.application import Application
@@ -9,6 +10,10 @@ from prompt_toolkit.layout.containers import HSplit, Window
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import SearchToolbar, TextArea
+
+import _thread
+import threading
+import multiprocessing
 
 
 class ChatTUI(object):
@@ -27,23 +32,30 @@ class ChatTUI(object):
 
         self.style = self.classic_style
 
-        self.welcome_message = """
+        self.welcome_txt = """
         Welcome to honkuru. The peer-to-peer text chat. 
         To send a message just type it and send with 'enter'. 
-        To display this help message type '!help'
+        To display this help message type '!help'\n
         """
+        self.welcome_msg = Message(Message.server_user, self.welcome_txt)
 
-        # self.palette = self.classic_theme
 
         # reference to messages object of client
+        self.manager = multiprocessing.Manager()
+
         self.messages = messages
+        self.messages.append(self.welcome_msg)
+
+        self.application = Application()
+
+
 
         # self.draw()
 
 
     def main(self):
         # The layout.
-        self.output_field = TextArea(style="class:output-field", text=self.welcome_message)
+        self.output_field = TextArea(style="class:output-field", text=self.welcome_msg.message)
         self.input_field = TextArea(
             height=1,
             prompt=">>> ",
@@ -74,7 +86,7 @@ class ChatTUI(object):
             exit(1)
 
         # Run application.
-        application = Application(
+        self.application = Application(
             layout=Layout(container, focused_element=self.input_field),
             key_bindings=kb,
             style=self.style,
@@ -82,29 +94,18 @@ class ChatTUI(object):
             full_screen=True,
         )
 
-        application.run()
+        # _thread.start_new_thread(self.render_messages, ("Thread-1", 2,))
 
-    # Attach accept handler to the input field. We do this by assigning the
-    # handler to the `TextArea` that we created earlier. it is also possible to
-    # pass it to the constructor of `TextArea`.
-    # NOTE: It's better to assign an `accept_handler`, rather then adding a
-    #       custom ENTER key binding. This will automatically reset the input
-    #       field and add the strings to the history.
-    def accept(self, buff):
-        # Evaluate "calculator" expression.
-        try:
-            output = "\n\nIn:  {}\nOut: {}".format(
-                self.input_field.text, eval(self.input_field.text)
-            )  # Don't do 'eval' in real code!
-        except BaseException as e:
-            output = "\n\n{}".format(e)
-        new_text = self.output_field.text + output
-
-        # Add text to output buffer.
-        self.output_field.buffer.document = Document(
-            text=new_text, cursor_position=len(new_text)
+        t = threading.Thread(
+            target=self.render_messages,
+            args=(),
         )
+        t.daemon = True
+        t.start()
 
+        self.application.run()
+
+    '''
     def receive_msg(self, msg):
         """
         adds a message to the message box
@@ -120,50 +121,31 @@ class ChatTUI(object):
             text=new_text, cursor_position=len(new_text)
         )
 
-    def send_message(self, buff):
+        self.application.invalidate()
+    '''
 
+    def send_message(self, buff):
         self.send(self.input_field.text)
 
+    def render_messages(self):
+        msg_len = 0
+        while True:
+            sleep(0.01)
+            if msg_len < len(self.messages):
 
+                # print(self.messages)
+                new_text = ""
+                msg = ""
+                for msg in self.messages:
+                    new_text = new_text + "\n" + msg.user + ": " + msg.message
+                user_msg = msg.user + ": " + msg.message
+                # new_text = self.output_field.text + user_msg
 
-    def draw(self):
-        # while True:
-        send_line = urwid.Edit(u"Send: ")
-        fill = InputBox(send_line)
-        fill.set_vars(send_line, self.send)
-        loop = urwid.MainLoop(fill, unhandled_input=self.exit_on_q)
-        msg_box = self.draw_messages()
-        loop.run()
-
-    def exit_on_q(self, key):
-        if key in ('esc',):
-            raise urwid.ExitMainLoop()
-
-    def draw_messages(self):
-        # print(self.messages)
-        msgs = ""
-        for msg in self.messages:
-            msgs = msgs + msg.user + ": " + msg.message + "\n"
-        msg_box = urwid.Text(msgs)
-        return msg_box
-
-
-class InputBox(urwid.Filler):
-    # def __init__(self, edit):
-        # self.edit_text = edit
-    def set_vars(self, edit, send):
-        self.edit = edit
-        self.send = send
-
-    def keypress(self, size, key):
-        if key != 'enter':
-            return super(InputBox, self).keypress(size, key)
-        # send message
-        # self.edit.edit_text
-        self.send(self.edit.edit_text)
-        self.original_widget = urwid.Text(
-            "send: "
-        )
+                self.output_field.buffer.document = Document(
+                    text=new_text, cursor_position=len(new_text)
+                )
+                msg_len = len(self.messages)
+                # self.application.invalidate()
 
 
 if __name__ == "__main__":

@@ -66,7 +66,7 @@ class Server(object):
             # print("Received data: ", data)
             msg = pickle.loads(msg_pickled)
             self.messages.append(msg)
-            print(self.clients)
+            print(msg.user + ": " + msg.message)
             self.distribute_message(msg)
 
             # data = data.decode('utf-8')
@@ -95,7 +95,7 @@ class Server(object):
         """
         with self.clients_lock:
             for client in self.clients:
-                print("sending to: ", client)
+                # print("sending to: ", client)
                 msg_pickled = pickle.dumps(msg)
                 client.sendall(msg_pickled)
 

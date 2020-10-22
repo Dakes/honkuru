@@ -1,10 +1,16 @@
 import pickle
 import socket
+import multiprocessing
+import threading
+from time import sleep
 
 from message import Message
 
 from chat_tui import ChatTUI
 
+
+# tmp
+from playsound import playsound
 
 class Client(object):
 
@@ -15,7 +21,8 @@ class Client(object):
         self.user = "Anonymous"
 
         # Array of all past message history. Elements are Message objects
-        self.messages = []
+        self.manager = multiprocessing.Manager()
+        self.messages = []# self.manager.list([])
         self.client_socket = None
 
     def client(self):
@@ -34,32 +41,25 @@ class Client(object):
         self.client_socket.send(Message.client_connection)
         self.set_username()
 
-
-        ui.main()
+        t = threading.Thread(
+            target=ui.main,
+            args=(),
+        )
+        t.daemon = True
+        t.start()
 
         # Receive and print welcome message
         resp_pickled = self.client_socket.recv(4096)
         resp = pickle.loads(resp_pickled)
-        print(resp.user+":", resp.message)
-        ui.receive_msg(resp)
+
+        self.messages.append(resp)
 
         while True:
-            # msg_str = input('send: ')
-            # msg = Message(self.user, msg_str)
-            # prevent sending of empty String
-            # msg = Message(self.user, "") if not msg else msg
-
-            # msg_pickled = pickle.dumps(msg)
-            # client_socket.send(msg_pickled)
+            sleep(1)
             resp_pickled = self.client_socket.recv(4096)
             resp = pickle.loads(resp_pickled)
-            # print(resp.user+":", resp.message)
-            self.messages.append(resp)
-            ui.receive_msg(resp)
-            # print("")
 
-            # if msg.message == Message.disconnect:
-                # break
+            self.messages.append(resp)
 
         client_socket.close()
 

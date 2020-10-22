@@ -9,6 +9,7 @@ from threading import Thread
 import client, server
 from message import Message
 
+
 class Honkuru(object):
 
     def __init__(self):
