@@ -30,6 +30,14 @@ class ChatTUI(object):
             ]
         )
 
+        self.dark_mode = Style(
+            [
+                ("output-field", "bg:#2b2b2b #ffffff"),
+                ("input-field", "bg:#3c3f41 #ffffff"),
+                ("line", "#004400"),
+            ]
+        )
+
         self.style = self.classic_style
 
         self.welcome_txt = """
@@ -105,27 +113,28 @@ class ChatTUI(object):
 
         self.application.run()
 
-    '''
-    def receive_msg(self, msg):
+    def send_message(self, buff):
         """
-        adds a message to the message box
-        :param msg: Message object
+        Will send the message typed by calling the reference to the send function of the client
+        Also handles some special command, like theme changing
+        :param buff:
         :return:
         """
-        # print("TUI received: " + msg)
-        # Add text to output buffer.
-        user_msg = msg.user + ": " + msg.message
-        new_text = self.output_field.text + user_msg
+        msg = self.input_field.text
 
-        self.output_field.buffer.document = Document(
-            text=new_text, cursor_position=len(new_text)
-        )
+        if msg and msg[0] == Message.command_prefix:
+            # change color themes
+            if Message.theme in msg:
+                theme = msg.lstrip(Message.theme).lstrip()
+                if theme == "dark mode" or theme == "dark_mode":
+                    self.style = self.dark_mode
+                    self.application.style = self.style
+                else:
+                    # TODO: print available themes
+                    pass
 
-        self.application.invalidate()
-    '''
-
-    def send_message(self, buff):
-        self.send(self.input_field.text)
+        else:
+            self.send(msg)
 
     def render_messages(self):
         msg_len = 0
@@ -138,14 +147,11 @@ class ChatTUI(object):
                 msg = ""
                 for msg in self.messages:
                     new_text = new_text + "\n" + msg.user + ": " + msg.message
-                user_msg = msg.user + ": " + msg.message
-                # new_text = self.output_field.text + user_msg
 
                 self.output_field.buffer.document = Document(
                     text=new_text, cursor_position=len(new_text)
                 )
                 msg_len = len(self.messages)
-                # self.application.invalidate()
 
 
 if __name__ == "__main__":

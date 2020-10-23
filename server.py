@@ -66,25 +66,23 @@ class Server(object):
             # print("Received data: ", data)
             msg = pickle.loads(msg_pickled)
             self.messages.append(msg)
-            print(msg.user + ": " + msg.message)
-            self.distribute_message(msg)
 
-            # data = data.decode('utf-8')
+            # disconnect
             if msg.message == Message.disconnect:
-                reply_str = "Disconnecting"
-                reply = Message(Message.server_user, reply_str)
-                reply_pickled = pickle.dumps(reply)
-                connection.sendall(reply_pickled)
+                reply_str = "User '" + msg.user + "' disconnected."
+                client_disconnected_msg = Message(Message.server_user, reply_str)
+                client_disconnected_msg_pickled = pickle.dumps(client_disconnected_msg)
+                self.distribute_message(client_disconnected_msg_pickled)
+
+                discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
+                connection.send(discharge)
                 break
             else:
-                # send reply back as is
-                # reply = 'Server received: ' + data.message
-                pass
+                print(msg.user + ": " + msg.message)
+                self.distribute_message(msg)
             if not msg_pickled:
                 break
 
-            # TODO: send to all connected clients
-            connection.sendall(msg_pickled)
         connection.close()
 
     def distribute_message(self, msg):
@@ -97,7 +95,7 @@ class Server(object):
             for client in self.clients:
                 # print("sending to: ", client)
                 msg_pickled = pickle.dumps(msg)
-                client.sendall(msg_pickled)
+                client.send(msg_pickled)
 
 
 

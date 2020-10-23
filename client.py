@@ -9,9 +9,6 @@ from message import Message
 from chat_tui import ChatTUI
 
 
-# tmp
-from playsound import playsound
-
 class Client(object):
 
     def __init__(self, sip, sport):
@@ -55,20 +52,24 @@ class Client(object):
         self.messages.append(resp)
 
         while True:
-            sleep(1)
             resp_pickled = self.client_socket.recv(4096)
             resp = pickle.loads(resp_pickled)
 
             self.messages.append(resp)
 
-        client_socket.close()
+            # command cases
+            if resp.message == Message.disconnect:
+                sleep(1)
+                self.client_socket.close()
+                exit(1)
+
 
     def set_username(self):
         usr = input("Please choose a username: ")
         self.user = usr
 
-    def send(self, msg):
-        new_msg = Message(self.user, msg)
+    def send(self, msg_txt):
+        new_msg = Message(self.user, msg_txt)
         msg_pickled = pickle.dumps(new_msg)
         self.client_socket.send(msg_pickled)
 
