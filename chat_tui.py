@@ -33,10 +33,20 @@ class ChatTUI(object):
         self.dark_mode = Style(
             [
                 ("output-field", "bg:#2b2b2b #ffffff"),
-                ("input-field", "bg:#3c3f41 #ffffff"),
+                ("input-field", "bg:#000000 #ffffff"),
                 ("line", "#004400"),
             ]
         )
+
+        self.dakes_theme = Style(
+            [
+                ("output-field", "bg:#004400 #ffffff"),
+                ("input-field", "bg:#000000 #ffffff"),
+                ("line", "#aa007f"),
+            ]
+        )
+
+        self.themes = ["classic style", "dark mode", "dakes theme"]
 
         self.style = self.classic_style
 
@@ -126,12 +136,20 @@ class ChatTUI(object):
             # change color themes
             if Message.theme in msg:
                 theme = msg.lstrip(Message.theme).lstrip()
-                if theme == "dark mode" or theme == "dark_mode":
+                if theme == "classic style" or theme == "classic_style":
+                    self.style = self.classic_style
+                elif theme == "dark mode" or theme == "dark_mode":
                     self.style = self.dark_mode
-                    self.application.style = self.style
+                elif "dakes" in theme:
+                    self.style = self.dakes_theme
+
                 else:
-                    # TODO: print available themes
-                    pass
+                    themes_help = "Available themes  are: \n" + str(self.themes) + \
+                        '\nYou select a theme by typing: "!theme classic style"'
+
+                    themes_help_msg = Message(Message.server_user, themes_help)
+                    self.messages.append(themes_help_msg)
+                self.application.style = self.style
 
         else:
             self.send(msg)
