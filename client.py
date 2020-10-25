@@ -11,7 +11,7 @@ from chat_tui import ChatTUI
 
 class Client(object):
 
-    def __init__(self, sip, sport):
+    def __init__(self, sip, sport, verbose=False):
         self.server_ip = sip
         self.server_port = sport
 
@@ -22,12 +22,12 @@ class Client(object):
         self.messages = []# self.manager.list([])
         self.client_socket = None
 
-    def client(self):
-        ui = ChatTUI(self.send, self.messages)
+        self.verbose = verbose
 
+    def client(self):
+        ui = ChatTUI(self, self.messages)
 
         self.client_socket = socket.socket()
-        # self.client_socket = client_socket
         print('Waiting for connection')
         try:
             self.client_socket.connect((self.server_ip, self.server_port))
@@ -38,41 +38,72 @@ class Client(object):
         self.client_socket.send(Message.client_connection)
         self.set_username()
 
-        t = threading.Thread(
+        ui_thread = threading.Thread(
             target=ui.main,
             args=(),
         )
-        t.daemon = True
-        t.start()
-
-        # Receive and print welcome message
-        resp_pickled = self.client_socket.recv(4096)
-        resp = pickle.loads(resp_pickled)
-
-        self.messages.append(resp)
+        ui_thread.daemon = True
+        ui_thread.start()
 
         while True:
-            resp_pickled = self.client_socket.recv(4096)
-            resp = pickle.loads(resp_pickled)
-
-            self.messages.append(resp)
+            resp = self.recv()
+            # print(resp)
+            # if isinstance(resp, Message):
+            #     print(resp.message)
 
             # command cases
-            if resp.message == Message.disconnect:
-                sleep(1)
-                self.client_socket.close()
-                exit(1)
+            # If None is returned the connection is usually down
+            if resp is None:
+                print("Received 'None' from Server")
+                break
+            elif resp == Message.close_connection:
+                self.disconnect()
+                break
+            elif isinstance(resp, Message) and resp.message == Message.disconnect:
+                self.disconnect()
+                break
 
+        ui.disconnect()
 
     def set_username(self):
-        usr = input("Please choose a username: ")
+        # TODO: check for duplicate usernames
+        usr = ""
+        while not usr:
+            usr = input("Please choose a username: ")
+            if not usr:
+                print("Username cannot be empty")
         self.user = usr
 
     def send(self, msg_txt):
+        """
+        Creates a Message object, pickles it and sends it to the Server
+        :param msg_txt: String: Message to send
+        """
         new_msg = Message(self.user, msg_txt)
         msg_pickled = pickle.dumps(new_msg)
         self.client_socket.send(msg_pickled)
 
+    def disconnect(self):
+        """
+        Send coded closing message to communicate to server to close the connection.
+        Also receives the discharge message
+        """
+        self.client_socket.send(Message.close_connection)
+        resp = self.recv()
+        sleep(1)
+        self.client_socket.close()
 
-    def new_msg(self):
-        pass
+
+    def recv(self):
+        """
+        Receive and unpickle a message
+        :return: A Message Object
+        """
+        resp_pickled = self.client_socket.recv(4096)
+        if not resp_pickled:
+            return None
+        resp = pickle.loads(resp_pickled)
+        if isinstance(resp, Message):
+            self.messages.append(resp)
+        return resp
+

@@ -7,9 +7,10 @@ from time import sleep
 
 from message import Message
 
+
 class Server(object):
 
-    def __init__(self, sip, sport, cports):
+    def __init__(self, sip, sport, cports, verbose=False):
         self.server_ip = sip
         self.server_port = sport
         self.client_ports_available = cports
@@ -20,13 +21,10 @@ class Server(object):
         self.last_message = None
         self.messages = []
 
-
-        self.welcome_message = "Welcome to the chatroom. "
-
+        self.verbose = verbose
 
     def server(self):
         server_socket = socket.socket()
-        thread_count = 0
         try:
             server_socket.bind((self.server_ip, self.server_port))
         except socket.error as e:
@@ -51,7 +49,7 @@ class Server(object):
 
     def threaded_server(self, connection):
 
-        wlc = Message(Message.server_user, self.welcome_message)
+        wlc = Message(Message.server_user, Message.welcome_message)
         wlc_pickled = pickle.dumps(wlc)
         connection.send(wlc_pickled)
 
@@ -63,23 +61,28 @@ class Server(object):
                 sleep(0.01)
                 continue
 
-            # print("Received data: ", data)
             msg = pickle.loads(msg_pickled)
-            self.messages.append(msg)
 
+            # Check for communication Strings, not Message objects
             # disconnect
-            if msg.message == Message.disconnect:
-                reply_str = "User '" + msg.user + "' disconnected."
-                client_disconnected_msg = Message(Message.server_user, reply_str)
-                client_disconnected_msg_pickled = pickle.dumps(client_disconnected_msg)
-                self.distribute_message(client_disconnected_msg_pickled)
-
+            if msg_pickled == Message.close_connection:
+                with self.clients_lock:
+                    self.clients.remove(connection)
+                # Notify all clients of leaver
+                client_disconnected_msg = Message(Message.server_user, "User '" + msg.user + "' disconnected.")
+                self.distribute_message(client_disconnected_msg)
+                # send discharge message to client and close connection
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
                 connection.send(discharge)
+                sleep(1)
                 break
-            else:
-                print(msg.user + ": " + msg.message)
-                self.distribute_message(msg)
+
+            self.messages.append(msg)
+
+            # first check for special codes (sent as string instead of Message object)
+
+            print(msg.user + ": " + msg.message)
+            self.distribute_message(msg)
             if not msg_pickled:
                 break
 
@@ -89,15 +92,10 @@ class Server(object):
         """
         Sends the given message to all connected clients
         :param msg:
-        :return:
         """
+        msg_pickled = pickle.dumps(msg)
         with self.clients_lock:
             for client in self.clients:
                 # print("sending to: ", client)
-                msg_pickled = pickle.dumps(msg)
                 client.send(msg_pickled)
-
-
-
-
 

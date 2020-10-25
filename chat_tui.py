@@ -14,12 +14,14 @@ from prompt_toolkit.widgets import SearchToolbar, TextArea
 import _thread
 import threading
 import multiprocessing
+import colorama
 
 
 class ChatTUI(object):
 
-    def __init__(self, send=None, messages=None):
-        self.send = send
+    def __init__(self, client=None, messages=None):
+        self.client = client
+        self.send = self.client.send
 
         # Style.
         self.classic_style = Style(
@@ -66,8 +68,6 @@ class ChatTUI(object):
 
         self.application = Application()
 
-
-
         # self.draw()
 
 
@@ -99,9 +99,7 @@ class ChatTUI(object):
         @kb.add("c-q")
         def _(event):
             """ Pressing Ctrl-Q or Ctrl-C will exit the user interface. """
-            event.app.exit()
-            # TODO: make close connection function
-            exit(1)
+            self.client.client_socket.send(Message.close_connection)
 
         # Run application.
         self.application = Application(
@@ -151,8 +149,15 @@ class ChatTUI(object):
                     self.messages.append(themes_help_msg)
                 self.application.style = self.style
 
+            # disconnect is handled by client
+            elif Message.disconnect in msg:
+                # self.disconnect()
+                self.client.client_socket.send(Message.close_connection)
+                # self.client.disconnect()
+                # self.disconnect()
+
         else:
-            self.send(msg)
+            self.client.send(msg)
 
     def render_messages(self):
         msg_len = 0
@@ -170,6 +175,11 @@ class ChatTUI(object):
                     text=new_text, cursor_position=len(new_text)
                 )
                 msg_len = len(self.messages)
+
+    def disconnect(self):
+        self.messages.append(Message(Message.client_user, "Disconnecting... "))
+        sleep(2)
+        self.application.exit()
 
 
 if __name__ == "__main__":
