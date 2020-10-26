@@ -12,6 +12,7 @@ class Message(object):
 
     server_user = "server"
     client_user = "client"
+    anonymous_user = "Anonymous"
 
     # constant strings for background communication between client and server
     check_available = b"aep7OoQu7ie3eeng7jeeCahXoh3iegha"

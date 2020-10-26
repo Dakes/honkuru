@@ -10,10 +10,9 @@ from message import Message
 
 class Server(object):
 
-    def __init__(self, sip, sport, cports, verbose=False):
+    def __init__(self, sip, sport, verbose=False):
         self.server_ip = sip
         self.server_port = sport
-        self.client_ports_available = cports
         # self.client_ports_in_use = []
         self.clients = set()
         self.clients_lock = threading.Lock()
@@ -22,6 +21,8 @@ class Server(object):
         self.messages = []
 
         self.verbose = verbose
+        # verbose print function
+        self.vprint = print if self.verbose else lambda *a, **k: None
 
     def server(self):
         server_socket = socket.socket()
@@ -53,6 +54,8 @@ class Server(object):
         wlc_pickled = pickle.dumps(wlc)
         connection.send(wlc_pickled)
 
+        user = None
+
         while True:
             msg_pickled = connection.recv(4096)
 
@@ -61,15 +64,15 @@ class Server(object):
                 sleep(0.01)
                 continue
 
-            msg = pickle.loads(msg_pickled)
-
             # Check for communication Strings, not Message objects
             # disconnect
             if msg_pickled == Message.close_connection:
                 with self.clients_lock:
                     self.clients.remove(connection)
                 # Notify all clients of leaver
-                client_disconnected_msg = Message(Message.server_user, "User '" + msg.user + "' disconnected.")
+                if user is None:
+                    user = Message.anonymous_user
+                client_disconnected_msg = Message(Message.server_user, "User '" + user + "' disconnected.")
                 self.distribute_message(client_disconnected_msg)
                 # send discharge message to client and close connection
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
@@ -77,11 +80,15 @@ class Server(object):
                 sleep(1)
                 break
 
+            msg = pickle.loads(msg_pickled)
+            if user is None:
+                user = msg.user
             self.messages.append(msg)
 
             # first check for special codes (sent as string instead of Message object)
 
-            print(msg.user + ": " + msg.message)
+            # print(msg.user + ": " + msg.message)
+            self.vprint(msg.user + ": " + msg.message)
             self.distribute_message(msg)
             if not msg_pickled:
                 break

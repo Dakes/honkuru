@@ -50,14 +50,27 @@ class ChatTUI(object):
 
         self.themes = ["classic style", "dark mode", "dakes theme"]
 
+        self.themes_help_txt = "Available themes  are: \n" + str(self.themes) + \
+                               '\nYou select a theme by typing: "!theme classic style"'
+
+        self.themes_help_msg = Message(Message.server_user, self.themes_help_txt)
+
         self.style = self.classic_style
 
         self.welcome_txt = """
         Welcome to honkuru. The peer-to-peer text chat. 
         To send a message just type it and send with 'enter'. 
-        To display this help message type '!help'\n
+        To display the help message type '!help'\n
         """
         self.welcome_msg = Message(Message.server_user, self.welcome_txt)
+
+        self.help_txt = """To display this help type: {}
+        To display all available color themes type: {}
+        To disconnect type: {}
+        or Press Ctrl+C or Ctrl+Q""".format(Message.help, Message.theme, Message.disconnect)
+        self.help_msg = Message(Message.server_user, self.help_txt)
+
+
 
 
         # reference to messages object of client
@@ -100,6 +113,8 @@ class ChatTUI(object):
         def _(event):
             """ Pressing Ctrl-Q or Ctrl-C will exit the user interface. """
             self.client.client_socket.send(Message.close_connection)
+            sleep(2)
+            event.app.exit()
 
         # Run application.
         self.application = Application(
@@ -142,11 +157,7 @@ class ChatTUI(object):
                     self.style = self.dakes_theme
 
                 else:
-                    themes_help = "Available themes  are: \n" + str(self.themes) + \
-                        '\nYou select a theme by typing: "!theme classic style"'
-
-                    themes_help_msg = Message(Message.server_user, themes_help)
-                    self.messages.append(themes_help_msg)
+                    self.messages.append(self.themes_help_msg)
                 self.application.style = self.style
 
             # disconnect is handled by client
@@ -155,6 +166,10 @@ class ChatTUI(object):
                 self.client.client_socket.send(Message.close_connection)
                 # self.client.disconnect()
                 # self.disconnect()
+
+            # help Message
+            elif Message.help in msg:
+                self.messages.append(self.help_msg)
 
         else:
             self.client.send(msg)
@@ -179,7 +194,10 @@ class ChatTUI(object):
     def disconnect(self):
         self.messages.append(Message(Message.client_user, "Disconnecting... "))
         sleep(2)
-        self.application.exit()
+        try:
+            self.application.exit()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

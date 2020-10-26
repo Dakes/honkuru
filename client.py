@@ -23,6 +23,8 @@ class Client(object):
         self.client_socket = None
 
         self.verbose = verbose
+        # verbose print function
+        self.vprint = print if self.verbose else lambda *a, **k: None
 
     def client(self):
         ui = ChatTUI(self, self.messages)
@@ -54,7 +56,7 @@ class Client(object):
             # command cases
             # If None is returned the connection is usually down
             if resp is None:
-                print("Received 'None' from Server")
+                self.vprint("Received 'None' from Server")
                 break
             elif resp == Message.close_connection:
                 self.disconnect()

@@ -2,6 +2,7 @@ import os
 from time import sleep
 import socket
 import configparser
+import argparse
 from itertools import chain
 import re
 from threading import Thread
@@ -13,6 +14,18 @@ from message import Message
 class Honkuru(object):
 
     def __init__(self):
+
+        # parse command line Arguments
+
+        my_parser = argparse.ArgumentParser(prog='Honkuru',
+                                            description='A Python based peer-to-peer text chat. ')
+        # Add the arguments
+        my_parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
+                               help="Activates the verbose mode. May break the UI in client mode. ")
+
+        self.args = my_parser.parse_args()
+        self.verbose = self.args.verbose
+
         # get config path
         path = os.path.dirname(os.path.realpath(__file__))
         path = os.path.join(path, 'config.cfg')
@@ -29,6 +42,8 @@ class Honkuru(object):
         sleep(0.1)
         self.server = False
 
+        self.vprint = print if self.verbose else lambda *a, **k: None
+
         if not server_exist:
             print("Server not detected at: ", self.server_ip+":"+str(self.server_port))
             print("Entering Server mode")
@@ -43,7 +58,6 @@ class Honkuru(object):
             s.connect((self.server_ip, self.server_port))
             s.send(Message.check_available)
             result = s.recv(1024)
-            print("result: ", result)
             s.close()
             if result == Message.server_available:
                 return True
@@ -56,9 +70,9 @@ class Honkuru(object):
             exit(1)
 
     def main(self):
+
         if self.server:
-            s = server.Server(self.server_ip, self.server_port, self.client_ports)
-            # s.server()
+            s = server.Server(self.server_ip, self.server_port, self.verbose)
             server_thread = Thread(target=s.server, args=())
             server_thread.start()
 
@@ -67,7 +81,7 @@ class Honkuru(object):
             # client_thread = Thread(target=c.client, args=())
             # client_thread.start()
         else:
-            c = client.Client(self.server_ip, self.server_port)
+            c = client.Client(self.server_ip, self.server_port, self.verbose)
             c.client()
         # TODO: add server only mode
 
