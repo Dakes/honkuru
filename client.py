@@ -11,16 +11,22 @@ from chat_tui import ChatTUI
 
 class Client(object):
 
-    def __init__(self, sip, sport, verbose=False):
+    def __init__(self, sip, sport, server=None, verbose=False):
         self.server_ip = sip
         self.server_port = sport
+        self.server = server
 
         self.user = "Anonymous"
 
+        self.running = True
+
         # Array of all past message history. Elements are Message objects
         self.manager = multiprocessing.Manager()
-        self.messages = []# self.manager.list([])
+        self.messages = []
         self.client_socket = None
+
+        # List of all other clients, used to determine next server.
+        self.clients = []
 
         self.verbose = verbose
         # verbose print function
@@ -47,23 +53,9 @@ class Client(object):
         ui_thread.daemon = True
         ui_thread.start()
 
-        while True:
+        while self.running:
             resp = self.recv()
-            # print(resp)
-            # if isinstance(resp, Message):
-            #     print(resp.message)
-
-            # command cases
-            # If None is returned the connection is usually down
-            if resp is None:
-                self.vprint("Received 'None' from Server")
-                break
-            elif resp == Message.close_connection:
-                self.disconnect()
-                break
-            elif isinstance(resp, Message) and resp.message == Message.disconnect:
-                self.disconnect()
-                break
+            print(self.clients)
 
         ui.disconnect()
 
@@ -95,6 +87,31 @@ class Client(object):
         sleep(1)
         self.client_socket.close()
 
+    def check_codes(self, msg):
+        if msg == Message.client_list_update:
+            self.recv_client_list()
+            return None
+        elif msg == Message.close_connection:
+            self.disconnect()
+            self.running = False
+            return None
+        # elif isinstance(msg, Message):
+            # if msg.message == Message.disconnect:
+                # self.disconnect()
+                # self.running = False
+        elif msg is None:
+            self.vprint("Received 'None' from Server")
+            self.running = False
+            return None
+        elif not msg:
+            return None
+        else:
+            return msg
+
+    def recv_client_list(self):
+        list_pickled = self.client_socket.recv(4096)
+        client_list = pickle.loads(list_pickled)
+        self.clients = client_list
 
     def recv(self):
         """
@@ -102,7 +119,8 @@ class Client(object):
         :return: A Message Object
         """
         resp_pickled = self.client_socket.recv(4096)
-        if not resp_pickled:
+        code = self.check_codes(resp_pickled)
+        if not code:
             return None
         resp = pickle.loads(resp_pickled)
         if isinstance(resp, Message):

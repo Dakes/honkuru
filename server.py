@@ -10,11 +10,16 @@ from message import Message
 
 class Server(object):
 
-    def __init__(self, sip, sport, verbose=False):
+    def __init__(self, sip, sport, client=None, verbose=False):
         self.server_ip = sip
         self.server_port = sport
+
+        # The client, that ot started in the same session as the server
+        self.client = client
+
         # self.client_ports_in_use = []
-        self.clients = set()
+        # List of all clients, gets synchronized to all clients. Determines what client will become the next server.
+        self.clients = []
         self.clients_lock = threading.Lock()
 
         self.last_message = None
@@ -43,8 +48,9 @@ class Server(object):
                     client.close()
                     continue
                 elif check_msg == Message.client_connection:
-                    self.clients.add(client)
-                    print('Connected to: ' + address[0] + ':' + str(address[1]))
+                    self.clients.append(client)
+                    self.vprint('Connected to: ' + address[0] + ':' + str(address[1]))
+                    self.distribute_clients()
                     _thread.start_new_thread(self.threaded_server, (client,))
         server_socket.close()
 
@@ -56,15 +62,27 @@ class Server(object):
 
         user = None
 
+        recv_empty_counter = 0
+
         while True:
+            print(connection.getpeername()[0])
+            print(connection.getpeername()[1])
             msg_pickled = connection.recv(4096)
 
             # skip if string is empty (does not come from client)
             if not msg_pickled:
+                recv_empty_counter = recv_empty_counter + 1
                 sleep(0.01)
-                continue
+                # close connection if connection is down
+                if recv_empty_counter > 1000000:
+                    break
+                else:
+                    continue
 
-            # Check for communication Strings, not Message objects
+            else:
+                recv_empty_counter = 0
+
+            # first check for special codes (sent as string instead of Message object)
             # disconnect
             if msg_pickled == Message.close_connection:
                 with self.clients_lock:
@@ -72,22 +90,24 @@ class Server(object):
                 # Notify all clients of leaver
                 if user is None:
                     user = Message.anonymous_user
-                client_disconnected_msg = Message(Message.server_user, "User '" + user + "' disconnected.")
+                client_disconnected_msg = Message(Message.server_user, "'" + user + "' left the chat.")
                 self.distribute_message(client_disconnected_msg)
                 # send discharge message to client and close connection
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
                 connection.send(discharge)
                 sleep(1)
+                self.distribute_clients()
                 break
 
             msg = pickle.loads(msg_pickled)
-            if user is None:
+            if user is None and isinstance(msg, Message):
                 user = msg.user
+                # send entered chat to all clients as soon as user name is known
+                self.distribute_message(Message(Message.server_user, "'" + user + "' entered the chat."))
+                print("sent entered to all clients")
+
             self.messages.append(msg)
 
-            # first check for special codes (sent as string instead of Message object)
-
-            # print(msg.user + ": " + msg.message)
             self.vprint(msg.user + ": " + msg.message)
             self.distribute_message(msg)
             if not msg_pickled:
@@ -95,14 +115,34 @@ class Server(object):
 
         connection.close()
 
+    def distribute_bytes(self, byt):
+        """
+        sends the given bytes to all clients
+        :param byt: bytes like object
+        """
+        with self.clients_lock:
+            for client in self.clients:
+                client.send(byt)
+
+    def distribute_clients(self):
+        """
+        Sends current clients list to all clients
+        :return:
+        """
+        clients_pickled = pickle.dumps(self.clients)
+        self.distribute_bytes(Message.client_list_update)
+        sleep(0.1)
+        self.distribute_bytes(clients_pickled)
+
     def distribute_message(self, msg):
         """
         Sends the given message to all connected clients
-        :param msg:
+        :param msg: Message object
         """
-        msg_pickled = pickle.dumps(msg)
-        with self.clients_lock:
-            for client in self.clients:
-                # print("sending to: ", client)
-                client.send(msg_pickled)
+        if isinstance(msg, Message):
+            msg = pickle.dumps(msg)
+        else:
+            self.vprint("Warning: distribute_message got non Message object, sending like is. ")
+        self.distribute_bytes(msg)
+
 

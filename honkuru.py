@@ -72,16 +72,17 @@ class Honkuru(object):
     def main(self):
 
         if self.server:
-            s = server.Server(self.server_ip, self.server_port, self.verbose)
+            s = server.Server(self.server_ip, self.server_port, None, self.verbose)
             server_thread = Thread(target=s.server, args=())
             server_thread.start()
 
-            # c = client.Client(self.server_ip, self.server_port)
-            # c.client()
+            c = client.Client(self.server_ip, self.server_port, s, self.verbose)
+            s.client = c
+            c.client()
             # client_thread = Thread(target=c.client, args=())
             # client_thread.start()
         else:
-            c = client.Client(self.server_ip, self.server_port, self.verbose)
+            c = client.Client(self.server_ip, self.server_port, None, self.verbose)
             c.client()
         # TODO: add server only mode
 
