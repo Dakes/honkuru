@@ -26,7 +26,7 @@ class Client(object):
         self.client_socket = None
 
         # List of all other clients, used to determine next server.
-        self.clients = []
+        self.clients = {}
 
         self.verbose = verbose
         # verbose print function
@@ -55,7 +55,6 @@ class Client(object):
 
         while self.running:
             resp = self.recv()
-            print(self.clients)
 
         ui.disconnect()
 
@@ -73,6 +72,7 @@ class Client(object):
         Creates a Message object, pickles it and sends it to the Server
         :param msg_txt: String: Message to send
         """
+        self.vprint("Sending: "+msg_txt)
         new_msg = Message(self.user, msg_txt)
         msg_pickled = pickle.dumps(new_msg)
         self.client_socket.send(msg_pickled)
@@ -89,7 +89,7 @@ class Client(object):
 
     def check_codes(self, msg):
         if msg == Message.client_list_update:
-            self.recv_client_list()
+            self.recv_client_dict()
             return None
         elif msg == Message.close_connection:
             self.disconnect()
@@ -104,11 +104,12 @@ class Client(object):
             self.running = False
             return None
         elif not msg:
+            self.running = False
             return None
         else:
             return msg
 
-    def recv_client_list(self):
+    def recv_client_dict(self):
         list_pickled = self.client_socket.recv(4096)
         client_list = pickle.loads(list_pickled)
         self.clients = client_list

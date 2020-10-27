@@ -18,7 +18,9 @@ class Server(object):
         self.client = client
 
         # self.client_ports_in_use = []
-        # List of all clients, gets synchronized to all clients. Determines what client will become the next server.
+        # List client_information, gets synchronized to all clients. Determines what client will become the next server.
+        # Saves the IPs of connected clients with their usernames as keys. Also used by clients to avoid duped usernames
+        self.client_information = {}
         self.clients = []
         self.clients_lock = threading.Lock()
 
@@ -50,12 +52,10 @@ class Server(object):
                 elif check_msg == Message.client_connection:
                     self.clients.append(client)
                     self.vprint('Connected to: ' + address[0] + ':' + str(address[1]))
-                    self.distribute_clients()
                     _thread.start_new_thread(self.threaded_server, (client,))
         server_socket.close()
 
     def threaded_server(self, connection):
-
         wlc = Message(Message.server_user, Message.welcome_message)
         wlc_pickled = pickle.dumps(wlc)
         connection.send(wlc_pickled)
@@ -65,8 +65,6 @@ class Server(object):
         recv_empty_counter = 0
 
         while True:
-            print(connection.getpeername()[0])
-            print(connection.getpeername()[1])
             msg_pickled = connection.recv(4096)
 
             # skip if string is empty (does not come from client)
@@ -78,7 +76,6 @@ class Server(object):
                     break
                 else:
                     continue
-
             else:
                 recv_empty_counter = 0
 
@@ -96,24 +93,36 @@ class Server(object):
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
                 connection.send(discharge)
                 sleep(1)
+                self.remove_client_info(user)
                 self.distribute_clients()
                 break
 
             msg = pickle.loads(msg_pickled)
+
+            # TODO: add separate communication String and method for user name
             if user is None and isinstance(msg, Message):
                 user = msg.user
+                self.vprint("Received user name:", user)
+                self.add_client_info(user, connection)
                 # send entered chat to all clients as soon as user name is known
                 self.distribute_message(Message(Message.server_user, "'" + user + "' entered the chat."))
-                print("sent entered to all clients")
+                self.distribute_clients()
 
             self.messages.append(msg)
 
             self.vprint(msg.user + ": " + msg.message)
             self.distribute_message(msg)
-            if not msg_pickled:
-                break
 
         connection.close()
+
+    def add_client_info(self, user, client):
+        ip = client.getpeername()[0]
+        self.client_information[user] = ip
+        self.vprint("Adding", user, "to client_information with", ip)
+
+    def remove_client_info(self, user):
+        self.client_information.pop(user)
+        self.vprint("Removing user", user, "from client_information")
 
     def distribute_bytes(self, byt):
         """
@@ -129,7 +138,7 @@ class Server(object):
         Sends current clients list to all clients
         :return:
         """
-        clients_pickled = pickle.dumps(self.clients)
+        clients_pickled = pickle.dumps(self.client_information)
         self.distribute_bytes(Message.client_list_update)
         sleep(0.1)
         self.distribute_bytes(clients_pickled)
