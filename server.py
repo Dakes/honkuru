@@ -32,16 +32,25 @@ class Server(object):
         self.vprint = print if self.verbose else lambda *a, **k: None
 
     def main(self):
-        server_socket = socket.socket()
         try:
-            server_socket.bind((self.server_ip, self.server_port))
+            self.server()
+        except KeyboardInterrupt:
+            # TODO: not working properly due to Thread
+            self.vprint("Caught KeyboardInterrupt")
+            self.shutdown()
+
+    def server(self):
+        self.server_socket = socket.socket()
+        try:
+            # TODO wait until connection is not in use any more
+            self.server_socket.bind((self.server_ip, self.server_port))
         except socket.error as e:
             print(str(e))
             exit(1)
-        server_socket.listen(5)
+        self.server_socket.listen(5)
 
         while True:
-            client, address = server_socket.accept()
+            client, address = self.server_socket.accept()
             with self.clients_lock:
                 check_msg = client.recv(1024)
                 # only add to clients if not a test connect to see if server is available
@@ -52,8 +61,14 @@ class Server(object):
                 elif check_msg == Message.client_connection:
                     self.clients.append(client)
                     self.vprint('Connected to: ' + address[0] + ':' + str(address[1]))
-                    _thread.start_new_thread(self.threaded_server, (client,))
-        server_socket.close()
+                    # _thread.start_new_thread(self.threaded_server, (client,))
+                    server_thread = threading.Thread(
+                        target=self.threaded_server,
+                        args=(client,),
+                    )
+                    server_thread.daemon = True
+                    server_thread.start()
+        self.server_socket.close()
 
     def threaded_server(self, connection):
         wlc = Message(Message.server_user, Message.welcome_message)
@@ -153,5 +168,16 @@ class Server(object):
         else:
             self.vprint("Warning: distribute_message got non Message object, sending like is. ")
         self.distribute_bytes(msg)
+
+    def shutdown(self):
+        """
+        Communicates to clients that server is shutting down and a new server is needed.
+        :return:
+        """
+        self.vprint("Shutting down Server")
+        self.distribute_bytes(Message.server_shutdown)
+        sleep(1)
+        self.server_socket.close()
+        exit(0)
 
 

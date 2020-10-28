@@ -25,6 +25,8 @@ class Message(object):
     close_connection = b"geingohveequ3ooKatooJ8oomiCifihe"
     # if this is received by client, the next message will be a new client list.
     client_list_update = b"ahphahKoo9biupheer4HaiCheiwa4hie"
+    # sent from server to clients if server is shutting down
+    server_shutdown = b"dohk0Yei8ahrahwi5aejoe4utaid7tho"
 
     def __init__(self, usr, msg):
         self.user = usr

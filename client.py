@@ -88,17 +88,21 @@ class Client(object):
             self.disconnect()
             self.running = False
             return None
+        elif msg == Message.server_shutdown:
+            self.new_server()
+            return None
         # elif isinstance(msg, Message):
             # if msg.message == Message.disconnect:
                 # self.disconnect()
                 # self.running = False
-        elif msg is None:
-            self.vprint("Received 'None' from Server")
+        elif msg is None or not msg:
+            self.vprint("Received 'None' or empty response from Server", msg)
             # TODO: search for new main
             # self.running = False
             self.new_server()
             return None
         elif not msg:
+            self.vprint("check_codes: in elif not msg: ", msg)
             self.running = False
             return None
         else:
@@ -125,9 +129,8 @@ class Client(object):
 
     def new_server(self):
         """
-        Will create a new main, or search for a new main,
-        depending on, if this main is the next one in the clients list
-        :return:
+        Will create a new server, or search for a new server,
+        depending on, if this server is the next one in the clients list
         """
         new_user = next(iter(self.clients))
         # main will create the new Server
@@ -143,17 +146,16 @@ class Client(object):
 
         self.connect_server()
         # removes the first element from dict
-        new_ip = self.clients.pop(next(iter(self.clients)))
-        pass
 
     def connect_server(self):
         if self.client_socket is None:
             print('Waiting for connection')
         else:
-            self.vprint('Waiting for connection')
+            self.vprint('Waiting for new connection')
 
         self.client_socket = socket.socket()
         try:
+            # TODO: wait (reasonably long) until connection is not refused
             self.client_socket.connect((self.server_ip, self.server_port))
         except socket.error as e:
             print(str(e))
