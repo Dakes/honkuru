@@ -73,17 +73,17 @@ class Honkuru(object):
 
         if self.server:
             s = server.Server(self.server_ip, self.server_port, None, self.verbose)
-            server_thread = Thread(target=s.server, args=())
+            server_thread = Thread(target=s.main, args=())
             server_thread.start()
 
-            # c = client.Client(self.server_ip, self.server_port, s, self.verbose)
-            # s.client = c
-            # c.client()
-            # client_thread = Thread(target=c.client, args=())
+            # c = main.Client(self.server_ip, self.server_port, s, self.verbose)
+            # s.main = c
+            # c.main()
+            # client_thread = Thread(target=c.main, args=())
             # client_thread.start()
         else:
             c = client.Client(self.server_ip, self.server_port, None, self.verbose)
-            c.client()
+            c.main()
         # TODO: add server only mode
 
     def parse_range_list(self, rgstr):

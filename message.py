@@ -10,8 +10,8 @@ class Message(object):
     welcome_message = "Welcome to the chatroom. "
     discharge_msg = "Goodbye! "
 
-    server_user = "server"
-    client_user = "client"
+    server_user = "Server"
+    client_user = "Client"
     anonymous_user = "Anonymous"
 
     # constant strings for background communication between client and server

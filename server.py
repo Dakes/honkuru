@@ -31,7 +31,7 @@ class Server(object):
         # verbose print function
         self.vprint = print if self.verbose else lambda *a, **k: None
 
-    def server(self):
+    def main(self):
         server_socket = socket.socket()
         try:
             server_socket.bind((self.server_ip, self.server_port))

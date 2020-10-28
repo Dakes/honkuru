@@ -6,15 +6,16 @@ from time import sleep
 
 from message import Message
 
+import server
 from chat_tui import ChatTUI
 
 
 class Client(object):
 
-    def __init__(self, sip, sport, server=None, verbose=False):
+    def __init__(self, sip, sport, serv=None, verbose=False):
         self.server_ip = sip
         self.server_port = sport
-        self.server = server
+        self.server = serv
 
         self.user = "Anonymous"
 
@@ -32,18 +33,10 @@ class Client(object):
         # verbose print function
         self.vprint = print if self.verbose else lambda *a, **k: None
 
-    def client(self):
+    def main(self):
         ui = ChatTUI(self, self.messages)
 
-        self.client_socket = socket.socket()
-        print('Waiting for connection')
-        try:
-            self.client_socket.connect((self.server_ip, self.server_port))
-        except socket.error as e:
-            print(str(e))
-            exit(1)
-
-        self.client_socket.send(Message.client_connection)
+        self.connect_server()
         self.set_username()
 
         ui_thread = threading.Thread(
@@ -101,7 +94,9 @@ class Client(object):
                 # self.running = False
         elif msg is None:
             self.vprint("Received 'None' from Server")
-            self.running = False
+            # TODO: search for new main
+            # self.running = False
+            self.new_server()
             return None
         elif not msg:
             self.running = False
@@ -127,4 +122,42 @@ class Client(object):
         if isinstance(resp, Message):
             self.messages.append(resp)
         return resp
+
+    def new_server(self):
+        """
+        Will create a new main, or search for a new main,
+        depending on, if this main is the next one in the clients list
+        :return:
+        """
+        new_user = next(iter(self.clients))
+        # main will create the new Server
+        if new_user == self.user:
+            ip = self.clients.pop(self.user)
+            self.server_ip = ip
+            self.server = server.Server(ip, self.server_port, None, self.verbose)
+            server_thread = threading.Thread(target=self.server.main, args=())
+            server_thread.start()
+        else:
+            ip = self.clients.pop(new_user)
+            self.server_ip = ip
+
+        self.connect_server()
+        # removes the first element from dict
+        new_ip = self.clients.pop(next(iter(self.clients)))
+        pass
+
+    def connect_server(self):
+        if self.client_socket is None:
+            print('Waiting for connection')
+        else:
+            self.vprint('Waiting for connection')
+
+        self.client_socket = socket.socket()
+        try:
+            self.client_socket.connect((self.server_ip, self.server_port))
+        except socket.error as e:
+            print(str(e))
+            exit(1)
+
+        self.client_socket.send(Message.client_connection)
 
