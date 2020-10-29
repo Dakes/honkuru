@@ -77,17 +77,26 @@ class Client(object):
         """
         self.client_socket.send(Message.close_connection)
         resp = self.recv()
+        self.running = False
         sleep(1)
         self.client_socket.close()
 
     def check_codes(self, msg):
+        """
+        Check byte String codes, being sent instead of Message object
+        :param msg: Message Object or Bytestring
+        :return: msg if no code received, None otherwise
+        """
         if msg == Message.client_list_update:
             self.recv_client_dict()
             return None
+
+        # TODO: remove, should never receive close_connection
         elif msg == Message.close_connection:
             self.disconnect()
             self.running = False
             return None
+
         elif msg == Message.server_shutdown:
             self.new_server()
             return None
@@ -96,8 +105,7 @@ class Client(object):
                 # self.disconnect()
                 # self.running = False
         elif msg is None or not msg:
-            self.vprint("Received 'None' or empty response from Server", msg)
-            # TODO: search for new main
+            self.vprint("Received 'None' or empty response from Server", msg, ". Searching for new Server. ")
             # self.running = False
             self.new_server()
             return None
@@ -105,13 +113,22 @@ class Client(object):
             self.vprint("check_codes: in elif not msg: ", msg)
             self.running = False
             return None
+        elif isinstance(msg, bytes):
+            self.vprint("Received unidentifiable code in check_codes: ", msg)
+            return None
         else:
             return msg
 
     def recv_client_dict(self):
+        """
+        Receives a new list of clients from the server and updates the local list.
+        """
         list_pickled = self.client_socket.recv(4096)
         client_list = pickle.loads(list_pickled)
-        self.clients = client_list
+        if isinstance(client_list, dict):
+            self.clients = client_list
+        else:
+            self.vprint("recv_client_dict: Received something else than dict: ", type(client_list))
 
     def recv(self):
         """
@@ -132,6 +149,11 @@ class Client(object):
         Will create a new server, or search for a new server,
         depending on, if this server is the next one in the clients list
         """
+        # first check if dict is empty.
+        if not self.clients:
+            print("Clients list is empty. exiting. ")
+            exit(1)
+
         new_user = next(iter(self.clients))
         # main will create the new Server
         if new_user == self.user:
@@ -144,22 +166,40 @@ class Client(object):
             ip = self.clients.pop(new_user)
             self.server_ip = ip
 
-        self.connect_server()
-        # removes the first element from dict
+        connected = self.connect_server()
+        # try next one in dict
+        if not connected:
+            self.new_server()
 
     def connect_server(self):
+        """
+        Connects to the server for the current IP and port
+        :return: new connection, if success, None otherwise
+        """
         if self.client_socket is None:
             print('Waiting for connection')
         else:
             self.vprint('Waiting for new connection')
 
         self.client_socket = socket.socket()
-        try:
-            # TODO: wait (reasonably long) until connection is not refused
-            self.client_socket.connect((self.server_ip, self.server_port))
-        except socket.error as e:
-            print(str(e))
-            exit(1)
+
+        tries = 0
+        sleep_duration = 1
+        max_seconds = 120
+        max_tries = max_seconds/sleep_duration
+
+        while tries < max_tries:
+            try:
+                self.client_socket.connect((self.server_ip, self.server_port))
+                break
+            except socket.error as e:
+                print(str(e))
+                tries += 1
+                sleep(sleep_duration)
+                if tries > max_tries:
+                    print("Server could not be found at", self.server_ip, self.server_port)
+                    return None
 
         self.client_socket.send(Message.client_connection)
+        return self.client_socket
 
