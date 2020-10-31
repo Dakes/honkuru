@@ -41,12 +41,28 @@ class Server(object):
 
     def server(self):
         self.server_socket = socket.socket()
-        try:
-            # TODO wait until connection is not in use any more
-            self.server_socket.bind((self.server_ip, self.server_port))
-        except socket.error as e:
-            print(str(e))
-            exit(1)
+
+        tries = 0
+        sleep_duration = 1
+        max_seconds = 120
+        max_tries = max_seconds / sleep_duration
+
+        while tries < max_tries:
+            try:
+                self.server_socket.bind((self.server_ip, self.server_port))
+                self.vprint("Opened new server. ")
+                break
+            except socket.error as e:
+                # self.vprint(str(e))
+                tries += 1
+                sleep(sleep_duration)
+                if tries % 10 == 0:
+                    self.vprint("Still trying to open server. ")
+                if tries > max_tries:
+                    print("Server could not be opened at: ", self.server_ip, self.server_port)
+                    print(e)
+                    exit(1)
+
         self.server_socket.listen(5)
 
         while True:

@@ -17,7 +17,7 @@ class Client(object):
         self.server_port = sport
         self.server = serv
 
-        self.user = "Anonymous"
+        self.user = Message.anonymous_user
 
         self.running = True
 
@@ -52,7 +52,7 @@ class Client(object):
         ui.disconnect()
 
     def set_username(self):
-        # TODO: check for duplicate usernames
+        # TODO: check for duplicate usernames. For that receive client dict beforehand.
         usr = ""
         while not usr:
             usr = input("Please choose a username: ")
@@ -65,7 +65,7 @@ class Client(object):
         Creates a Message object, pickles it and sends it to the Server
         :param msg_txt: String: Message to send
         """
-        self.vprint("Sending: "+msg_txt)
+        # self.vprint("Sending: "+msg_txt)
         new_msg = Message(self.user, msg_txt)
         msg_pickled = pickle.dumps(new_msg)
         self.client_socket.send(msg_pickled)
@@ -80,6 +80,9 @@ class Client(object):
         self.running = False
         sleep(1)
         self.client_socket.close()
+        # execute close function of server if client has a server
+        if self.server is not None:
+            self.server.shutdown()
 
     def check_codes(self, msg):
         """
@@ -98,7 +101,8 @@ class Client(object):
             return None
 
         elif msg == Message.server_shutdown:
-            self.new_server()
+            if self.running:
+                self.new_server()
             return None
         # elif isinstance(msg, Message):
             # if msg.message == Message.disconnect:
@@ -107,13 +111,14 @@ class Client(object):
         elif msg is None or not msg:
             self.vprint("Received 'None' or empty response from Server", msg, ". Searching for new Server. ")
             # self.running = False
-            self.new_server()
+            if self.running:
+                self.new_server()
             return None
         elif not msg:
             self.vprint("check_codes: in elif not msg: ", msg)
             self.running = False
             return None
-        elif isinstance(msg, bytes):
+        elif isinstance(msg, bytes) and not isinstance(pickle.loads(msg), Message):
             self.vprint("Received unidentifiable code in check_codes: ", msg)
             return None
         else:
@@ -191,13 +196,15 @@ class Client(object):
         while tries < max_tries:
             try:
                 self.client_socket.connect((self.server_ip, self.server_port))
+                self.vprint("Connected to Server")
                 break
             except socket.error as e:
-                print(str(e))
                 tries += 1
                 sleep(sleep_duration)
+                # self.vprint(str(e))
                 if tries > max_tries:
                     print("Server could not be found at", self.server_ip, self.server_port)
+                    print(e)
                     return None
 
         self.client_socket.send(Message.client_connection)
