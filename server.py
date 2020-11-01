@@ -71,7 +71,7 @@ class Server(object):
                 check_msg = client.recv(1024)
                 # only add to clients if not a test connect to see if server is available
                 if check_msg == Message.check_available:
-                    client.send(Message.server_available)
+                    client.sendall(Message.server_available)
                     client.close()
                     continue
                 elif check_msg == Message.client_connection:
@@ -91,7 +91,7 @@ class Server(object):
         user = None
         while not user:
             try:
-                connection.send(Message.send_username)
+                connection.sendall(Message.send_username)
                 user = connection.recv(4096).decode()
                 if user in Message.all_codes:
                     self.vprint("Received", user, "instead of username. Closing this connection. ")
@@ -107,7 +107,7 @@ class Server(object):
 
         wlc = Message(Message.server_user, Message.welcome_message)
         wlc_pickled = pickle.dumps(wlc)
-        connection.send(wlc_pickled)
+        connection.sendall(wlc_pickled)
 
         recv_empty_counter = 0
 
@@ -143,8 +143,8 @@ class Server(object):
 
                 # send discharge message to client and close connection
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
-                connection.send(discharge)
-                connection.send(Message.close_connection)
+                connection.sendall(discharge)
+                connection.sendall(Message.close_connection)
                 sleep(1)
                 self.remove_client_info(user)
                 self.distribute_clients()
@@ -195,7 +195,7 @@ class Server(object):
         with self.clients_lock:
             for cl in self.clients:
                 try:
-                    cl.send(byt)
+                    cl.sendall(byt)
                 except BrokenPipeError:
                     # in case of broken pipe remove client
                     self.clients.remove(cl)

@@ -69,7 +69,7 @@ class Client(object):
         new_msg = Message(self.user, msg_txt)
         msg_pickled = pickle.dumps(new_msg)
         try:
-            self.client_socket.send(msg_pickled)
+            self.client_socket.sendall(msg_pickled)
         except BrokenPipeError:
             if self.running:
                 if not self.connect_server():
@@ -82,7 +82,7 @@ class Client(object):
         Send coded closing message to communicate to server to close the connection.
         Also receives the discharge message
         """
-        self.client_socket.send(Message.close_connection)
+        self.client_socket.sendall(Message.close_connection)
         resp = self.recv()
         self.running = False
         sleep(1)
@@ -124,7 +124,7 @@ class Client(object):
             # self.running = False
             self.new_server()
         elif msg == Message.send_username:
-            self.client_socket.send(self.user.encode())
+            self.client_socket.sendall(self.user.encode())
         elif isinstance(msg, bytes) and not isinstance(pickle.loads(msg), Message):
             self.vprint("Received unidentifiable code in check_codes: ", msg)
             try:
@@ -230,7 +230,7 @@ class Client(object):
                     print(e)
                     return None
 
-        self.client_socket.send(Message.client_connection)
+        self.client_socket.sendall(Message.client_connection)
         return self.client_socket
 
     def hard_shutdown(self):
