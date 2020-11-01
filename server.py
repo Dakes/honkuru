@@ -93,6 +93,10 @@ class Server(object):
             try:
                 connection.send(Message.send_username)
                 user = connection.recv(4096).decode()
+                if user in Message.all_codes:
+                    self.vprint("Received", user, "instead of username. Closing this connection. ")
+                    connection.close()
+                    return
                 self.vprint("Received user name:", user)
                 self.add_client_info(user, connection)
                 # send entered chat to all clients as soon as user name is known

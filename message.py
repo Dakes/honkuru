@@ -30,6 +30,9 @@ class Message(object):
     # sent from server to client to request username
     send_username = b"hoh6xahchuShinei5bietah7ahvuth2f"
 
+    all_codes = (check_available, server_available, client_connection, close_connection, client_list_update,
+                 server_shutdown, send_username)
+
     def __init__(self, usr, msg):
         self.user = usr
         self.send_time = datetime.datetime.now()

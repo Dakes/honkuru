@@ -68,7 +68,14 @@ class Client(object):
         # self.vprint("Sending: "+msg_txt)
         new_msg = Message(self.user, msg_txt)
         msg_pickled = pickle.dumps(new_msg)
-        self.client_socket.send(msg_pickled)
+        try:
+            self.client_socket.send(msg_pickled)
+        except BrokenPipeError:
+            if self.running:
+                if not self.connect_server():
+                    self.new_server()
+            else:
+                self.hard_shutdown()
 
     def disconnect(self):
         """
@@ -134,7 +141,11 @@ class Client(object):
         Receives a new list of clients from the server and updates the local list.
         """
         list_pickled = self.client_socket.recv(4096)
-        client_list = pickle.loads(list_pickled)
+        try:
+            client_list = pickle.loads(list_pickled)
+        except pickle.UnpicklingError as e:
+            self.vprint(e)
+            return None
         if isinstance(client_list, dict):
             self.clients = client_list
         else:
