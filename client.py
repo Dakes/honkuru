@@ -128,6 +128,11 @@ class Client(object):
         elif isinstance(msg, bytes) and not isinstance(pickle.loads(msg), Message):
             self.vprint("Received unidentifiable code in check_codes: ", msg)
             try:
+                # TODO: sometimes the client dict ends up here, too lazy too fix now. So quick and dirty.
+                pot_dict = pickle.loads(msg)
+                if isinstance(pot_dict, dict):
+                    self.clients = pot_dict
+
                 self.vprint(msg.decode("utf-8"))
             except Exception as e:
                 self.vprint(e)
