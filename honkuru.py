@@ -22,9 +22,12 @@ class Honkuru(object):
         # Add the arguments
         my_parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
                                help="Activates the verbose mode. May break the UI in client mode. ")
+        my_parser.add_argument('-s', '--server', action='store_true', dest='server',
+                               help="Starts only the server, without a client. Will automatically activate verbose. ")
 
         self.args = my_parser.parse_args()
         self.verbose = self.args.verbose
+        self.server_only = self.args.server
 
         # get config path
         path = os.path.dirname(os.path.realpath(__file__))
@@ -71,20 +74,22 @@ class Honkuru(object):
 
     def main(self):
 
-        if self.server:
+        if self.server or self.server_only:
             s = server.Server(self.server_ip, self.server_port, None, self.verbose)
             server_thread = Thread(target=s.main, args=())
             server_thread.start()
+            if self.server_only:
+                s.verbose = True
 
-            # c = main.Client(self.server_ip, self.server_port, s, self.verbose)
-            # s.main = c
-            # c.main()
-            # client_thread = Thread(target=c.main, args=())
-            # client_thread.start()
+            if not self.server_only:
+                c = client.Client(self.server_ip, self.server_port, s, self.verbose)
+                s.client = c
+                c.main()
+                # client_thread = Thread(target=c.main, args=())
+                # client_thread.start()
         else:
             c = client.Client(self.server_ip, self.server_port, None, self.verbose)
             c.main()
-        # TODO: add server only mode
 
     def parse_range_list(self, rgstr):
         """

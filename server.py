@@ -87,16 +87,36 @@ class Server(object):
         self.server_socket.close()
 
     def threaded_server(self, connection):
+        # get user name
+        user = None
+        while not user:
+            try:
+                connection.send(Message.send_username)
+                user = connection.recv(4096).decode()
+                self.vprint("Received user name:", user)
+                self.add_client_info(user, connection)
+                # send entered chat to all clients as soon as user name is known
+                self.distribute_message(Message(Message.server_user, "'" + user + "' entered the chat."))
+                self.distribute_clients()
+            except UnicodeDecodeError as e:
+                self.vprint(e)
+
         wlc = Message(Message.server_user, Message.welcome_message)
         wlc_pickled = pickle.dumps(wlc)
         connection.send(wlc_pickled)
 
-        user = None
-
         recv_empty_counter = 0
 
         while True:
-            msg_pickled = connection.recv(4096)
+            try:
+                msg_pickled = connection.recv(4096)
+            except BrokenPipeError:
+                self.vprint("client pipe broken, closing connection")
+                if user:
+                    self.remove_client(connection, user)
+                    self.remove_client_info(user)
+                else:
+                    break
 
             # skip if string is empty (does not come from client)
             if not msg_pickled:
@@ -104,6 +124,7 @@ class Server(object):
                 sleep(0.01)
                 # close connection if connection is down
                 if recv_empty_counter > 1000000:
+                    self.vprint("Received too much empty responses. exiting")
                     break
                 else:
                     continue
@@ -113,31 +134,23 @@ class Server(object):
             # first check for special codes (sent as string instead of Message object)
             # disconnect
             if msg_pickled == Message.close_connection:
-                with self.clients_lock:
-                    self.clients.remove(connection)
-                # Notify all clients of leaver
-                if user is None:
-                    user = Message.anonymous_user
-                client_disconnected_msg = Message(Message.server_user, "'" + user + "' left the chat.")
-                self.distribute_message(client_disconnected_msg)
+
+                self.remove_client(connection, user)
+
                 # send discharge message to client and close connection
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
                 connection.send(discharge)
+                connection.send(Message.close_connection)
                 sleep(1)
                 self.remove_client_info(user)
                 self.distribute_clients()
+                # If this is the clients server it should shut down
+                if self.client:
+                    if self.client.user == user:
+                        self.shutdown()
                 break
 
             msg = pickle.loads(msg_pickled)
-
-            # TODO: add separate communication String and method for user name
-            if user is None and isinstance(msg, Message):
-                user = msg.user
-                self.vprint("Received user name:", user)
-                self.add_client_info(user, connection)
-                # send entered chat to all clients as soon as user name is known
-                self.distribute_message(Message(Message.server_user, "'" + user + "' entered the chat."))
-                self.distribute_clients()
 
             self.messages.append(msg)
 
@@ -145,6 +158,21 @@ class Server(object):
             self.distribute_message(msg)
 
         connection.close()
+
+    def remove_client(self, cl, user):
+        """
+        removes the client and sends disconnected message to all users.
+        Assumes, client is not reachable any more due to broken pipe. Only messages all other clients.
+        :param cl: client socket connection
+        :param user: String, client user name
+        :return:
+        """
+        if user is None:
+            user = Message.anonymous_user
+        with self.clients_lock:
+            self.clients.remove(cl)
+        client_disconnected_msg = Message(Message.server_user, "'" + user + "' left the chat.")
+        self.distribute_message(client_disconnected_msg)
 
     def add_client_info(self, user, client):
         ip = client.getpeername()[0]
@@ -161,8 +189,12 @@ class Server(object):
         :param byt: bytes like object
         """
         with self.clients_lock:
-            for client in self.clients:
-                client.send(byt)
+            for cl in self.clients:
+                try:
+                    cl.send(byt)
+                except BrokenPipeError:
+                    # in case of broken pipe remove client
+                    self.clients.remove(cl)
 
     def distribute_clients(self):
         """

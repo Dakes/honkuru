@@ -26,6 +26,8 @@ class Client(object):
         self.messages = []
         self.client_socket = None
 
+        self.ui = ChatTUI(self, self.messages)
+
         # List of all other clients, used to determine next server.
         self.clients = {}
 
@@ -34,22 +36,20 @@ class Client(object):
         self.vprint = print if self.verbose else lambda *a, **k: None
 
     def main(self):
-        ui = ChatTUI(self, self.messages)
-
         self.connect_server()
         self.set_username()
 
         ui_thread = threading.Thread(
-            target=ui.main,
+            target=self.ui.main,
             args=(),
         )
         ui_thread.daemon = True
         ui_thread.start()
 
         while self.running:
-            resp = self.recv()
+            self.recv()
 
-        ui.disconnect()
+        self.ui.disconnect()
 
     def set_username(self):
         # TODO: check for duplicate usernames. For that receive client dict beforehand.
@@ -92,37 +92,42 @@ class Client(object):
         """
         if msg == Message.client_list_update:
             self.recv_client_dict()
-            return None
 
         # TODO: remove, should never receive close_connection
         elif msg == Message.close_connection:
             self.disconnect()
             self.running = False
-            return None
 
         elif msg == Message.server_shutdown:
             if self.running:
                 self.new_server()
-            return None
         # elif isinstance(msg, Message):
             # if msg.message == Message.disconnect:
                 # self.disconnect()
                 # self.running = False
-        elif msg is None or not msg:
-            self.vprint("Received 'None' or empty response from Server", msg, ". Searching for new Server. ")
+        # elif msg is None:
+            # self.vprint("Received 'None' or empty response from Server", msg, ". Searching for new Server. ")
             # self.running = False
-            if self.running:
-                self.new_server()
-            return None
+            # if self.running:
+                # pass
+                # self.new_server()
+            # return None
         elif not msg:
             self.vprint("check_codes: in elif not msg: ", msg)
-            self.running = False
-            return None
+            # self.running = False
+            self.new_server()
+        elif msg == Message.send_username:
+            self.client_socket.send(self.user.encode())
         elif isinstance(msg, bytes) and not isinstance(pickle.loads(msg), Message):
             self.vprint("Received unidentifiable code in check_codes: ", msg)
-            return None
+            try:
+                self.vprint(msg.decode("utf-8"))
+            except Exception as e:
+                self.vprint(e)
         else:
             return msg
+
+        return None
 
     def recv_client_dict(self):
         """
@@ -140,7 +145,14 @@ class Client(object):
         Receive and unpickle a message
         :return: A Message Object
         """
-        resp_pickled = self.client_socket.recv(4096)
+        # TODO: catch ConnectionResetError
+        try:
+            resp_pickled = self.client_socket.recv(4096)
+        except (ConnectionResetError, ConnectionError) as e:
+            self.vprint(str(e))
+            print("Connection error. exiting. ")
+            self.hard_shutdown()
+
         code = self.check_codes(resp_pickled)
         if not code:
             return None
@@ -157,7 +169,7 @@ class Client(object):
         # first check if dict is empty.
         if not self.clients:
             print("Clients list is empty. exiting. ")
-            exit(1)
+            self.hard_shutdown()
 
         new_user = next(iter(self.clients))
         # main will create the new Server
@@ -209,4 +221,11 @@ class Client(object):
 
         self.client_socket.send(Message.client_connection)
         return self.client_socket
+
+    def hard_shutdown(self):
+        self.ui.disconnect()
+        if self.server:
+            self.server.shutdown()
+        sleep(3)
+        exit(1)
 

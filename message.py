@@ -27,6 +27,8 @@ class Message(object):
     client_list_update = b"ahphahKoo9biupheer4HaiCheiwa4hie"
     # sent from server to clients if server is shutting down
     server_shutdown = b"dohk0Yei8ahrahwi5aejoe4utaid7tho"
+    # sent from server to client to request username
+    send_username = b"hoh6xahchuShinei5bietah7ahvuth2f"
 
     def __init__(self, usr, msg):
         self.user = usr
