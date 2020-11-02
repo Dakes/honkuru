@@ -63,7 +63,11 @@ class Server(object):
                     print(e)
                     exit(1)
 
-        self.server_socket.listen(5)
+        try:
+            self.server_socket.listen(5)
+        except OSError as e:
+            self.vprint(e)
+            self.shutdown()
 
         while True:
             client, address = self.server_socket.accept()
@@ -72,6 +76,7 @@ class Server(object):
                 # only add to clients if not a test connect to see if server is available
                 if check_msg == Message.check_available:
                     client.sendall(Message.server_available)
+                    client.shutdown(socket.SHUT_RDWR)
                     client.close()
                     continue
                 elif check_msg == Message.client_connection:
@@ -84,6 +89,7 @@ class Server(object):
                     )
                     server_thread.daemon = True
                     server_thread.start()
+        self.server_socket.shutdown(socket.SHUT_RDWR)
         self.server_socket.close()
 
     def threaded_server(self, connection):
@@ -95,6 +101,7 @@ class Server(object):
                 user = connection.recv(4096).decode()
                 if user in Message.all_codes:
                     self.vprint("Received", user, "instead of username. Closing this connection. ")
+                    connection.shutdown(socket.SHUT_RDWR)
                     connection.close()
                     return
                 self.vprint("Received user name:", user)
@@ -161,6 +168,7 @@ class Server(object):
             self.vprint(msg.user + ": " + msg.message)
             self.distribute_message(msg)
 
+        connection.shutdown(socket.SHUT_RDWR)
         connection.close()
 
     def remove_client(self, cl, user):
@@ -207,7 +215,7 @@ class Server(object):
         """
         clients_pickled = pickle.dumps(self.client_information)
         self.distribute_bytes(Message.client_list_update)
-        sleep(0.1)
+        # sleep(0.1)
         self.distribute_bytes(clients_pickled)
 
     def distribute_message(self, msg):
@@ -229,6 +237,7 @@ class Server(object):
         self.vprint("Shutting down Server")
         self.distribute_bytes(Message.server_shutdown)
         sleep(1)
+        self.server_socket.shutdown(socket.SHUT_RDWR)
         self.server_socket.close()
         exit(0)
 

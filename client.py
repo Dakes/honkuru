@@ -86,10 +86,11 @@ class Client(object):
         resp = self.recv()
         self.running = False
         sleep(1)
-        self.client_socket.close()
+        self.client_socket.shutdown(socket.SHUT_RDWR)
         # execute close function of server if client has a server
         if self.server is not None:
             self.server.shutdown()
+        self.client_socket.close()
 
     def check_codes(self, msg):
         """
@@ -108,10 +109,6 @@ class Client(object):
         elif msg == Message.server_shutdown:
             if self.running:
                 self.new_server()
-        # elif isinstance(msg, Message):
-            # if msg.message == Message.disconnect:
-                # self.disconnect()
-                # self.running = False
         # elif msg is None:
             # self.vprint("Received 'None' or empty response from Server", msg, ". Searching for new Server. ")
             # self.running = False
@@ -122,7 +119,7 @@ class Client(object):
         elif not msg:
             self.vprint("check_codes: in elif not msg: ", msg)
             # self.running = False
-            self.new_server()
+            # self.new_server()
         elif msg == Message.send_username:
             self.client_socket.sendall(self.user.encode())
         elif isinstance(msg, bytes) and not isinstance(pickle.loads(msg), Message):
@@ -131,6 +128,7 @@ class Client(object):
                 # TODO: sometimes the client dict ends up here, too lazy too fix now. So quick and dirty.
                 pot_dict = pickle.loads(msg)
                 if isinstance(pot_dict, dict):
+                    self.vprint("New received: ", pot_dict, "  Currently saved: ", self.clients)
                     self.clients = pot_dict
 
                 self.vprint(msg.decode("utf-8"))
@@ -161,16 +159,19 @@ class Client(object):
         Receive and unpickle a message
         :return: A Message Object
         """
-        # TODO: catch ConnectionResetError
         try:
             resp_pickled = self.client_socket.recv(4096)
         except (ConnectionResetError, ConnectionError) as e:
             self.vprint(str(e))
             print("Connection error. exiting. ")
             self.hard_shutdown()
+            return None
 
-        code = self.check_codes(resp_pickled)
-        if not code:
+        if not resp_pickled:
+            self.new_server()
+            return None
+
+        if not self.check_codes(resp_pickled):
             return None
         resp = pickle.loads(resp_pickled)
         if isinstance(resp, Message):
