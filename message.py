@@ -21,8 +21,10 @@ class Message(object):
     server_available = b"au3athei9pifoh4Aexu4raf9keic1ui7"
     # Communicates to server that client wants to connect
     client_connection = b"ie6peeL8asi4Zie8thuChee1ejooxies"
-    # signal to close the connection
-    close_connection = b"geingohveequ3ooKatooJ8oomiCifihe"
+    # signal to close the connection from client to server
+    close_connection_client = b"geingohveequ3ooKatooJ8oomiCifihe"
+    # signal to close the connection from server to client
+    # close_connection_server = b"eiYahg3aephaesh3ceb8rie0piahairo"
     # if this is received by client, the next message will be a new client list.
     client_list_update = b"ahphahKoo9biupheer4HaiCheiwa4hie"
     # sent from server to clients if server is shutting down
@@ -30,7 +32,7 @@ class Message(object):
     # sent from server to client to request username
     send_username = b"hoh6xahchuShinei5bietah7ahvuth2f"
 
-    all_codes = (check_available, server_available, client_connection, close_connection, client_list_update,
+    all_codes = (check_available, server_available, client_connection, close_connection_client, client_list_update,
                  server_shutdown, send_username)
 
     def __init__(self, usr, msg):

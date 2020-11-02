@@ -79,15 +79,18 @@ class Client(object):
 
     def disconnect(self):
         """
-        Send coded closing message to communicate to server to close the connection.
-        Also receives the discharge message
+        Called after disconnect confirmation is received, or when connection can be safely closed.
         """
-        self.client_socket.sendall(Message.close_connection)
-        resp = self.recv()
+        # receive for discharge message
+        # self.recv()
+        # receive for disconnect confirmation
+        # resp = self.recv_bytes()
+        # if resp == Message.close_connection_client:
         self.running = False
         sleep(1)
         self.client_socket.shutdown(socket.SHUT_RDWR)
         # execute close function of server if client has a server
+        self.ui.disconnect()
         if self.server is not None:
             self.server.shutdown()
         self.client_socket.close()
@@ -101,8 +104,7 @@ class Client(object):
         if msg == Message.client_list_update:
             self.recv_client_dict()
 
-        # TODO: remove, should never receive close_connection
-        elif msg == Message.close_connection:
+        elif msg == Message.close_connection_client:
             self.disconnect()
             self.running = False
 
@@ -122,17 +124,23 @@ class Client(object):
             # self.new_server()
         elif msg == Message.send_username:
             self.client_socket.sendall(self.user.encode())
-        elif isinstance(msg, bytes) and not isinstance(pickle.loads(msg), Message):
-            self.vprint("Received unidentifiable code in check_codes: ", msg)
+        elif isinstance(msg, bytes):
             try:
-                # TODO: sometimes the client dict ends up here, too lazy too fix now. So quick and dirty.
-                pot_dict = pickle.loads(msg)
-                if isinstance(pot_dict, dict):
-                    self.vprint("New received: ", pot_dict, "  Currently saved: ", self.clients)
-                    self.clients = pot_dict
-
-                self.vprint(msg.decode("utf-8"))
-            except Exception as e:
+                if not isinstance(pickle.loads(msg), Message):
+                    self.vprint("Received unidentifiable code in check_codes: ", msg)
+                    try:
+                        # TODO: sometimes the client dict ends up here, too lazy too fix now. So quick and dirty.
+                        pot_dict = pickle.loads(msg)
+                        if isinstance(pot_dict, dict):
+                            self.vprint("New received: ", pot_dict, "  Currently saved: ", self.clients)
+                            self.clients = pot_dict
+                        else:
+                            self.vprint(msg.decode("utf-8"))
+                    except Exception as e:
+                        self.vprint(e)
+                else:
+                    return msg
+            except pickle.UnpicklingError as e:
                 self.vprint(e)
         else:
             return msg
@@ -143,7 +151,7 @@ class Client(object):
         """
         Receives a new list of clients from the server and updates the local list.
         """
-        list_pickled = self.client_socket.recv(4096)
+        list_pickled = self.recv_bytes()
         try:
             client_list = pickle.loads(list_pickled)
         except pickle.UnpicklingError as e:
@@ -154,19 +162,22 @@ class Client(object):
         else:
             self.vprint("recv_client_dict: Received something else than dict: ", type(client_list))
 
-    def recv(self):
-        """
-        Receive and unpickle a message
-        :return: A Message Object
-        """
+    def recv_bytes(self):
         try:
-            resp_pickled = self.client_socket.recv(4096)
+            byt = self.client_socket.recv(4096)
         except (ConnectionResetError, ConnectionError) as e:
             self.vprint(str(e))
             print("Connection error. exiting. ")
             self.hard_shutdown()
             return None
+        return byt
 
+    def recv(self):
+        """
+        Receive and unpickle a message
+        :return: A Message Object
+        """
+        resp_pickled = self.recv_bytes()
         if not resp_pickled:
             self.new_server()
             return None
@@ -187,6 +198,9 @@ class Client(object):
         if not self.clients:
             print("Clients list is empty. exiting. ")
             self.hard_shutdown()
+
+        if not self.running:
+            return
 
         new_user = next(iter(self.clients))
         # main will create the new Server
@@ -210,10 +224,19 @@ class Client(object):
         Connects to the server for the current IP and port
         :return: new connection, if success, None otherwise
         """
+        if not self.running:
+            return
         if self.client_socket is None:
             print('Waiting for connection')
         else:
             self.vprint('Waiting for new connection')
+
+        if self.client_socket:
+            try:
+                self.client_socket.shutdown(socket.SHUT_RDWR)
+            except OSError as e:
+                self.vprint(e)
+            self.client_socket.close()
 
         self.client_socket = socket.socket()
 
@@ -240,6 +263,7 @@ class Client(object):
         return self.client_socket
 
     def hard_shutdown(self):
+        self.running = False
         self.ui.disconnect()
         if self.server:
             self.server.shutdown()

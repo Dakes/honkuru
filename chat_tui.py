@@ -112,7 +112,7 @@ class ChatTUI(object):
         @kb.add("c-q")
         def _(event):
             """ Pressing Ctrl-Q or Ctrl-C will exit the user interface. """
-            self.client.client_socket.send(Message.close_connection)
+            self.client.client_socket.send(Message.close_connection_client)
             sleep(2)
             event.app.exit()
 
@@ -163,7 +163,7 @@ class ChatTUI(object):
             # disconnect is handled by client
             elif Message.disconnect in msg:
                 # self.disconnect()
-                self.client.client_socket.send(Message.close_connection)
+                self.client.client_socket.sendall(Message.close_connection_client)
                 # self.client.disconnect()
                 # self.disconnect()
 

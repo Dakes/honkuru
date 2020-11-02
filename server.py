@@ -17,6 +17,8 @@ class Server(object):
         # The client, that ot started in the same session as the server
         self.client = client
 
+        self.running = True
+
         # self.client_ports_in_use = []
         # List client_information, gets synchronized to all clients. Determines what client will become the next server.
         # Saves the IPs of connected clients with their usernames as keys. Also used by clients to avoid duped usernames
@@ -37,6 +39,7 @@ class Server(object):
         except KeyboardInterrupt:
             # TODO: not working properly due to Thread
             self.vprint("Caught KeyboardInterrupt")
+            sleep(1)
             self.shutdown()
 
     def server(self):
@@ -59,9 +62,10 @@ class Server(object):
                 if tries % 10 == 0:
                     self.vprint("Still trying to open server. ")
                 if tries > max_tries:
-                    print("Server could not be opened at: ", self.server_ip, self.server_port)
-                    print(e)
-                    exit(1)
+                    self.vprint("Server could not be opened at: ", self.server_ip, self.server_port)
+                    self.vprint(e)
+                    self.socket_shutdown_close()
+                    return
 
         try:
             self.server_socket.listen(5)
@@ -69,8 +73,12 @@ class Server(object):
             self.vprint(e)
             self.shutdown()
 
-        while True:
-            client, address = self.server_socket.accept()
+        while self.running:
+            try:
+                client, address = self.server_socket.accept()
+            except OSError as e:
+                self.vprint(e)
+                break
             with self.clients_lock:
                 check_msg = client.recv(1024)
                 # only add to clients if not a test connect to see if server is available
@@ -89,7 +97,13 @@ class Server(object):
                     )
                     server_thread.daemon = True
                     server_thread.start()
-        self.server_socket.shutdown(socket.SHUT_RDWR)
+        self.socket_shutdown_close()
+
+    def socket_shutdown_close(self):
+        try:
+            self.server_socket.shutdown(socket.SHUT_RDWR)
+        except OSError as e:
+            self.vprint(e)
         self.server_socket.close()
 
     def threaded_server(self, connection):
@@ -97,10 +111,17 @@ class Server(object):
         user = None
         while not user:
             try:
-                connection.sendall(Message.send_username)
+                try:
+                    connection.sendall(Message.send_username)
+                except BrokenPipeError:
+                    self.vprint("client pipe broken, closing connection")
+                    connection.shutdown(socket.SHUT_RDWR)
+                    connection.close()
+                    return
                 user = connection.recv(4096).decode()
                 if user in Message.all_codes:
                     self.vprint("Received", user, "instead of username. Closing this connection. ")
+                    # TODO: check username, send already taken. retry.
                     connection.shutdown(socket.SHUT_RDWR)
                     connection.close()
                     return
@@ -119,6 +140,7 @@ class Server(object):
         recv_empty_counter = 0
 
         while True:
+            msg_pickled = None
             try:
                 msg_pickled = connection.recv(4096)
             except BrokenPipeError:
@@ -144,20 +166,20 @@ class Server(object):
 
             # first check for special codes (sent as string instead of Message object)
             # disconnect
-            if msg_pickled == Message.close_connection:
-
+            if msg_pickled == Message.close_connection_client:
                 self.remove_client(connection, user)
 
                 # send discharge message to client and close connection
                 discharge = pickle.dumps(Message(Message.server_user, Message.discharge_msg))
                 connection.sendall(discharge)
-                connection.sendall(Message.close_connection)
-                sleep(1)
+                connection.sendall(Message.close_connection_client)
+                sleep(0.1)
                 self.remove_client_info(user)
                 self.distribute_clients()
                 # If this is the clients server it should shut down
                 if self.client:
                     if self.client.user == user:
+                        self.running = False
                         self.shutdown()
                 break
 
@@ -237,8 +259,7 @@ class Server(object):
         self.vprint("Shutting down Server")
         self.distribute_bytes(Message.server_shutdown)
         sleep(1)
-        self.server_socket.shutdown(socket.SHUT_RDWR)
-        self.server_socket.close()
+        self.socket_shutdown_close()
         exit(0)
 
 
