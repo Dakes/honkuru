@@ -14,10 +14,11 @@ The only Dependency is `prompt_toolkit` for the tui.
 
 ## Usage
 Fill your config file accordingly:  
-`[server]  
+```
+[server]  
 port = 7950  
 ip = 192.168.178.2  
-`
+```
 
 port is the port all clients will connect on. I arbitrarily decided on 7950 for honkuru as the default.  
 The ip is usually your local IP. Keep in mind, that you have to be able to host a server on that IP.  
