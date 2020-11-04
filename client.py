@@ -81,11 +81,6 @@ class Client(object):
         """
         Called after disconnect confirmation is received, or when connection can be safely closed.
         """
-        # receive for discharge message
-        # self.recv()
-        # receive for disconnect confirmation
-        # resp = self.recv_bytes()
-        # if resp == Message.close_connection_client:
         self.running = False
         sleep(1)
         self.client_socket.shutdown(socket.SHUT_RDWR)
@@ -111,13 +106,6 @@ class Client(object):
         elif msg == Message.server_shutdown:
             if self.running:
                 self.new_server()
-        # elif msg is None:
-            # self.vprint("Received 'None' or empty response from Server", msg, ". Searching for new Server. ")
-            # self.running = False
-            # if self.running:
-                # pass
-                # self.new_server()
-            # return None
         elif not msg:
             self.vprint("check_codes: in elif not msg: ", msg)
             # self.running = False
@@ -267,6 +255,6 @@ class Client(object):
         self.ui.disconnect()
         if self.server:
             self.server.shutdown()
-        sleep(3)
+        sleep(1)
         exit(1)
 

@@ -193,7 +193,7 @@ class ChatTUI(object):
 
     def disconnect(self):
         self.messages.append(Message(Message.client_user, "Disconnecting... "))
-        sleep(2)
+        sleep(1)
         try:
             self.application.exit()
         except Exception:
