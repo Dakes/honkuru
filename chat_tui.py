@@ -14,7 +14,6 @@ from prompt_toolkit.widgets import SearchToolbar, TextArea
 import _thread
 import threading
 import multiprocessing
-import colorama
 
 
 class ChatTUI(object):

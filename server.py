@@ -1,7 +1,5 @@
 import pickle
 import socket
-# from _thread import *
-import _thread
 import threading
 from time import sleep
 

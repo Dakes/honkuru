@@ -3,8 +3,6 @@ from time import sleep
 import socket
 import configparser
 import argparse
-from itertools import chain
-import re
 from threading import Thread
 
 import client, server
