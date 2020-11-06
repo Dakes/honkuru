@@ -66,6 +66,10 @@ class Server(object):
                     return
 
         try:
+            if self.client:
+                if not self.client.running:
+                    self.socket_shutdown_close()
+                    return
             self.server_socket.listen(5)
         except OSError as e:
             self.vprint(e)
@@ -177,6 +181,7 @@ class Server(object):
                 # If this is the clients server it should shut down
                 if self.client:
                     if self.client.user == user:
+                        self.client.running = False
                         self.running = False
                         self.shutdown()
                 break
